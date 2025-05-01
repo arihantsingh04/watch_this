@@ -5,25 +5,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Search your Fav Movies</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <meta name="description" content="Search and explore your favorite movies on Watch.This."> <!-- Added meta description for SEO -->
 </head>
 <body>
   <header>
     <div class="logo"><a href="index.html">watch.this</a></div>
-    <div class="search-container">
-      <input type="text" class="search-box" id="searchBox" placeholder="Search movies..." oninput="fetchSuggestions(event)" onkeypress="performSearch(event)" />
-      <div class="suggestions" id="suggestions"></div>
+    <div class="menu-container">
+      <nav class="main-nav">
+        <a href="index.html" class="nav-btn">Home</a>
+        <a href="#" id="goHollywoodBtn" class="nav-btn active">Hollywood</a>
+        <a href="#" id="goBollywoodBtn" class="nav-btn">Bollywood</a>
+        <a href="watchlater.html" class="nav-btn">Watch Later</a>
+      </nav>
+      <div class="user-nav">
+        <button class="search-toggle" aria-label="Toggle search">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <div class="search-container">
+          <input type="text" class="search-box" id="searchBox" placeholder="Search..." oninput="fetchSuggestions(event)" onkeypress="performSearch(event)" onblur="hideSearch()" />
+          <div class="suggestions" id="suggestions"></div>
+        </div>
+        <button class="user-badge" aria-label="User menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-6 6v-2a6 6 0 0 1 12 0v2"></path>
+          </svg>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <div id="greeting" class="greeting"></div>
+          <button id="logout-btn" class="nav-btn">Logout</button> <!-- Styled as nav-btn -->
+        </div>
+      </div>
     </div>
-    <div class="language-toggle">
-      <button id="goHollywoodBtn" class="language-btn active">Go Hollywood</button>
-      <button id="goBollywoodBtn" class="language-btn">Go Bollywood</button>
-    </div>
-    <div id="greeting"></div>
+    <button class="mobile-menu-toggle" aria-label="Toggle menu">
+      <span class="hamburger"></span>
+    </button>
   </header>
+  <div id="currentlyWatchingContainer"></div>
   <main id="mainContent"></main>
-  <script src="script.js"></script>
+  <script src="script.js" defer></script> <!-- Added defer attribute for better performance -->
   <script>
     // Firebase initialization moved to script.js, but adding auth state listener here
     let currentUser = null;
@@ -37,7 +63,7 @@
       if (!greetingElement) return;
 
       if (currentUser) {
-        const username = currentUser.email.split('@')[0];
+        const username = currentUser?.email ? currentUser.email.split('@')[0] : 'Guest'; // Added fallback for undefined email
         greetingElement.innerHTML = `
           <div style="display: flex; flex-direction: column; align-items: flex-end;">
             <div style="font-size: 1.2rem; font-weight: bold;">Hi, ${username}</div>
@@ -47,8 +73,8 @@
         `;
       } else {
         greetingElement.innerHTML = `
-          <a href="login.html" style="color: white; text-decoration: none; font-size: 1.2rem;">Log In</a>
-          <a href="watchlater.html" style="color: white; text-decoration: none; font-size: 1.2rem; margin-left: 20px;">Watch Later</a>
+          <a href="login.html" class="nav-link">Log In</a> <!-- Moved inline styles to CSS -->
+          <a href="watchlater.html" class="nav-link" style="margin-left: 20px;">Watch Later</a>
         `;
       }
     }
@@ -57,10 +83,9 @@
       firebase.auth().signOut().then(() => {
         window.location.href = 'login.html';
       }).catch(error => {
-        alert('Error logging out: ' + error.message);
+        alert('An error occurred while logging out. Please try again. Error: ' + error.message); // Improved error message
       });
     }
   </script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'92147ddf3f1f7b94',t:'MTc0MjEzMDYzNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>

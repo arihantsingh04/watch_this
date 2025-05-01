@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+<nav class="navbar"></nav>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -52,6 +53,27 @@
       border: 2px solid var(--primary-blue);
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     }
+    @media (max-width: 768px) {
+  .iframe-container{
+    height: 50%;
+  }
+
+}
+
+main {
+  margin-top: 2vh ;
+  padding: 20px;
+}
+
+@media (max-width: 480px) {
+  .iframe-container{
+    height: 50%;
+  }
+
+  .modal-content iframe {
+    height: 30vh;
+  }
+}
     .iframe-container iframe {
       width: 100%;
       height: 100%;
@@ -241,336 +263,357 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+ <script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBheoLlOSdjle4CCZpb1vLtg4R1OWyE5bQ",
+    authDomain: "watch-this-f0b71.firebaseapp.com",
+    projectId: "watch-this-f0b71",
+    storageBucket: "watch-this-f0b71.appspot.com",
+    messagingSenderId: "1008946322583",
+    appId: "1:1008946322583:web:dee56d71e612d35001ddd2",
+    measurementId: "G-6TVXR7Y6QJ"
+  };
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyBheoLlOSdjle4CCZpb1vLtg4R1OWyE5bQ",
-      authDomain: "watch-this-f0b71.firebaseapp.com",
-      projectId: "watch-this-f0b71",
-      storageBucket: "watch-this-f0b71.firebasestorage.app",
-      messagingSenderId: "1008946322583",
-      appId: "1:1008946322583:web:dee56d71e612d35001ddd2",
-      measurementId: "G-6TVXR7Y6QJ"
-    };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
 
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+  const apiKey = "75a7e89329586e64789c4a51059f24ba";
+  const baseUrl = "https://api.themoviedb.org/3";
+  const imageBaseUrl = "https://image.tmdb.org/t/p/w500";
+  const movieDetailContainer = document.getElementById("movieDetail");
+  const recommendationsContainer = document.getElementById("recommendations");
 
-    const apiKey = "75a7e89329586e64789c4a51059f24ba";
-    const baseUrl = "https://api.themoviedb.org/3";
-    const imageBaseUrl = "https://image.tmdb.org/t/p/w500";
-    const movieDetailContainer = document.getElementById("movieDetail");
-    const recommendationsContainer = document.getElementById("recommendations");
+  const urlParams = new URLSearchParams(window.location.search);
+  const mediaId = urlParams.get("id");
+  const mediaType = urlParams.get("type") || 'movie';
 
+  let currentUser = null;
+
+  function displayGreeting() {
+    const greetingElement = document.getElementById('greeting');
+    if (!greetingElement) return;
+
+    if (currentUser) {
+      const username = currentUser.email.split('@')[0];
+      greetingElement.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+          <div style="font-size: 1.2rem; font-weight: bold;">Hi, ${username}</div>
+          <button onclick="logout()" class="logout-btn">Logout</button>
+          <a href="watchlater.html" style="color: white; text-decoration: none; font-size: 1rem; margin-top: 5px;">Watch Later</a>
+        </div>
+      `;
+    } else {
+      greetingElement.innerHTML = `
+        <a href="login.html" style="color: white; text-decoration: none; font-size: 1.2rem;">Log In</a>
+        <a href="watchlater.html" style="color: white; text-decoration: none; font-size: 1.2rem; margin-left: 20px;" title="Please log in first">Watch Later</a>
+      `;
+    }
+  }
+
+  auth.onAuthStateChanged(user => {
+    currentUser = user;
+    displayGreeting();
+    fetchMediaDetails(mediaId, mediaType);
+    // After media is loaded
+const autoplayData = JSON.parse(localStorage.getItem('autoplay'));
+if (autoplayData && autoplayData.id === mediaId) {
+  setTimeout(() => {
+    playMedia(autoplayData.id, autoplayData.type, autoplayData.season, autoplayData.episode);
+    localStorage.removeItem('autoplay'); // Clear it to avoid repeat
+  }, 500); // Slight delay to ensure DOM is ready
+}
+
+  });
+
+  function logout() {
+    auth.signOut().then(() => {
+      window.location.href = 'login.html';
+    }).catch(error => {
+      console.error('Error logging out:', error);
+    });
+  }
+
+  async function fetchMediaDetails(mediaId, mediaType) {
+    const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
+    const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}?api_key=${apiKey}&append_to_response=seasons`);
+    if (!response.ok) throw new Error(`Failed to fetch details: ${response.status}`);
+    const data = await response.json();
+
+    const poster = data.poster_path ? `${imageBaseUrl}${data.poster_path}` : 'https://via.placeholder.com/350x500';
+    const backgroundPoster = data.backdrop_path ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}` : poster;
+    const title = data.title || data.name;
+    const year = new Date(data.release_date || data.first_air_date).getFullYear() || 'N/A';
+    const rating = data.vote_average;
+    const overview = data.overview;
+    const trailer = await fetchMediaTrailer(mediaId, mediaType);
+
+    let isAdded = false;
+    if (currentUser) {
+      const doc = await db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId).get();
+      if (doc.exists) isAdded = true;
+    }
+
+    let seasonsHtml = '';
+    if (mediaType === 'series' || mediaType === 'tv') {
+      const seasons = data.seasons.filter(season => season.season_number > 0);
+      seasonsHtml = `
+        <div class="seasons-container">
+          <div>Number of Seasons: ${seasons.length}</div>
+          <select class="season-select" onchange="displayEpisodes(${mediaId}, this.value)">
+            <option value="">Select a season</option>
+            ${seasons.map(season => `<option value="${season.season_number}">Season ${season.season_number}</option>`).join('')}
+          </select>
+          <div class="episodes-list" id="episodesList"></div>
+        </div>
+      `;
+    }
+
+    movieDetailContainer.innerHTML = `
+      <div class="movie-header">
+        <img src="${poster}" alt="${title}" />
+        <div class="movie-info">
+          <div class="title">${title}</div>
+          <div class="year">${year}</div>
+          <div class="media-type">${mediaType === 'movie' ? 'Movie' : 'Series'}</div>
+          <div class="rating">Rating: <span>${rating}</span>/10</div>
+          <div class="overview">${overview || 'No overview available.'}</div>
+          ${seasonsHtml}
+          <div class="additional-info">
+            <a href="${trailer || '#'}" target="_blank" class="play-trailer" ${trailer ? '' : 'style="pointer-events: none;"'}>
+              Play Trailer
+            </a>
+            ${mediaType === 'movie' ? `<button class="watch-now" onclick="playMedia('${mediaId}', 'movie')">Watch Now</button>` : ''}
+            <button class="watch-later ${isAdded ? 'added' : ''}" id="watchLaterBtn" onclick="toggleWatchLater('${mediaId}', '${mediaType}')" ${currentUser ? '' : 'disabled'} title="${currentUser ? (isAdded ? 'Remove from Watch Later' : 'Add to Watch Later') : 'Please log in first'}">
+              <span>${isAdded ? 'Added' : 'Watch Later'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const screenshots = await fetchMediaScreenshots(mediaId, mediaType);
+    const screenshotImages = screenshots.slice(0, 10);
+    const screenshotsContainer = document.createElement("div");
+    screenshotsContainer.classList.add("screenshots");
+    screenshotImages.forEach(screenshot => {
+      const img = document.createElement("img");
+      img.classList.add("screenshot");
+      img.src = `${imageBaseUrl}${screenshot.file_path}`;
+      img.alt = "Screenshot";
+      img.onclick = () => openModal(img.src);
+      screenshotsContainer.appendChild(img);
+    });
+    movieDetailContainer.appendChild(screenshotsContainer);
+
+    loadRecommendations(mediaId, mediaType);
+  }
+
+  async function fetchMediaScreenshots(mediaId, mediaType) {
+    const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
+    const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}/images?api_key=${apiKey}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.backdrops || [];
+  }
+
+  async function fetchMediaTrailer(mediaId, mediaType) {
+    const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
+    const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}/videos?api_key=${apiKey}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const trailer = data.results.find(video => video.type === 'Trailer');
+    return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
+  }
+
+  async function displayEpisodes(mediaId, seasonNumber) {
+    if (!seasonNumber) {
+      document.getElementById("episodesList").innerHTML = "";
+      return;
+    }
+
+    const response = await fetch(`${baseUrl}/tv/${mediaId}/season/${seasonNumber}?api_key=${apiKey}`);
+    if (!response.ok) throw new Error(`Failed to fetch episodes: ${response.status}`);
+    const data = await response.json();
+    const episodesList = document.getElementById("episodesList");
+    episodesList.innerHTML = "";
+
+    data.episodes.forEach(episode => {
+      const episodeItem = document.createElement("div");
+      episodeItem.classList.add("episode-item");
+      episodeItem.textContent = `Episode ${episode.episode_number}`;
+      episodeItem.onclick = () => playMedia(mediaId, 'series', seasonNumber, episode.episode_number);
+      episodesList.appendChild(episodeItem);
+    });
+  }
+
+  function playMedia(mediaId, mediaType, season = null, episode = null) {
+  const iframeContainer = document.getElementById("iframeContainer");
+  const iframe = document.getElementById("watchIframe");
+  let url;
+
+  if (mediaType === 'movie') {
+    url = `https://moviesapi.club/movie/${mediaId}`;
+  } else if ((mediaType === 'series' || mediaType === 'tv') && season && episode) {
+    url = `https://moviesapi.club/tv/${mediaId}-${season}-${episode}`;
+  } else {
+    console.error("Invalid media type or missing season/episode for series:", mediaType);
+    return;
+  }
+
+  iframe.src = url;
+  iframeContainer.style.display = "block";
+
+  // Save immediately on playback start
+  const lastWatched = {
+  mediaId,
+  mediaType,
+  title: movieDetailContainer.querySelector('.title').textContent,
+  ...(season && episode ? { season, episode } : {})
+};
+
+localStorage.setItem('lastWatched', JSON.stringify(lastWatched));
+
+  if (currentUser) {
+    db.collection('users').doc(currentUser.uid).set({
+      lastWatched: lastWatched
+    }, { merge: true }).catch(error => {
+      console.error("Error saving last watched to Firebase:", error);
+    });
+  }
+}
+
+
+  function closeIframe() {
+    const iframeContainer = document.getElementById("iframeContainer");
+    const iframe = document.getElementById("watchIframe");
     const urlParams = new URLSearchParams(window.location.search);
     const mediaId = urlParams.get("id");
     const mediaType = urlParams.get("type") || 'movie';
 
-    let currentUser = null;
-
-    function displayGreeting() {
-      const greetingElement = document.getElementById('greeting');
-      if (!greetingElement) return;
-
-      if (currentUser) {
-        const username = currentUser.email.split('@')[0];
-        greetingElement.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: flex-end;">
-            <div style="font-size: 1.2rem; font-weight: bold;">Hi, ${username}</div>
-            <button onclick="logout()" class="logout-btn">Logout</button>
-            <a href="watchlater.html" style="color: white; text-decoration: none; font-size: 1rem; margin-top: 5px;">Watch Later</a>
-          </div>
-        `;
-      } else {
-        greetingElement.innerHTML = `
-          <a href="login.html" style="color: white; text-decoration: none; font-size: 1.2rem;">Log In</a>
-          <a href="watchlater.html" style="color: white; text-decoration: none; font-size: 1.2rem; margin-left: 20px;" title="Please log in first">Watch Later</a>
-        `;
+    // Save to localStorage when iframe closes
+    const iframeSrc = iframe.src;
+    let lastWatched = { mediaId, mediaType, poster: movieDetailContainer.querySelector('img').src, title: movieDetailContainer.querySelector('.title').textContent };
+    if (mediaType === 'series' || mediaType === 'tv') {
+      const match = iframeSrc.match(/tv\/(\d+)-(\d+)-(\d+)/);
+      if (match) {
+        const [, , season, episode] = match;
+        lastWatched.season = season;
+        lastWatched.episode = episode;
       }
     }
+    localStorage.setItem('lastWatched', JSON.stringify(lastWatched));
 
-    auth.onAuthStateChanged(user => {
-      currentUser = user;
-      displayGreeting();
-      fetchMediaDetails(mediaId, mediaType);
-    });
+    iframe.src = "";
+    iframeContainer.style.display = "none";
+  }
 
-    function logout() {
-      auth.signOut().then(() => {
-        window.location.href = 'login.html';
-      }).catch(error => {
-        console.error('Error logging out:', error);
-      });
-    }
+  function openModal(src) {
+  const modal = document.getElementById("screenshotModal");
+  const expandedScreenshot = document.getElementById("expandedScreenshot");
 
-    async function fetchMediaDetails(mediaId, mediaType) {
-      const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
-      const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}?api_key=${apiKey}&append_to_response=seasons`);
-      if (!response.ok) throw new Error(`Failed to fetch details: ${response.status}`);
-      const data = await response.json();
+  // Debug: Log the src to ensure it’s valid
+  console.log("Opening modal with src:", src);
 
-      const poster = data.poster_path ? `${imageBaseUrl}${data.poster_path}` : 'https://via.placeholder.com/350x500';
-      const title = data.title || data.name;
-      const year = new Date(data.release_date || data.first_air_date).getFullYear() || 'N/A';
-      const rating = data.vote_average;
-      const overview = data.overview;
-      const trailer = await fetchMediaTrailer(mediaId, mediaType);
+  // Set the image source and handle load/error
+  expandedScreenshot.src = src;
+  expandedScreenshot.onload = () => console.log("Image loaded successfully");
+  expandedScreenshot.onerror = () => {
+    console.error("Failed to load image");
+    expandedScreenshot.src = "https://via.placeholder.com/800x450?text=Image+Not+Found"; // Fallback image
+  };
 
-      let isAdded = false;
-      let isWatched = false;
-      if (currentUser) {
-        const doc = await db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId).get();
-        if (doc.exists) {
-          isAdded = true;
-          isWatched = doc.data().watched || false;
-        }
-      }
+  // Show the modal using the .visible class
+  modal.style.display = "flex"; // Ensure it’s visible first
+  setTimeout(() => modal.classList.add("visible"), 10); // Small delay for transition
+}
 
-      let seasonsHtml = '';
-      if (mediaType === 'series' || mediaType === 'tv') {
-        const seasons = data.seasons.filter(season => season.season_number > 0);
-        seasonsHtml = `
-          <div class="seasons-container">
-            <div>Number of Seasons: ${seasons.length}</div>
-            <select class="season-select" onchange="displayEpisodes(${mediaId}, this.value)">
-              <option value="">Select a season</option>
-              ${seasons.map(season => `<option value="${season.season_number}">Season ${season.season_number}</option>`).join('')}
-            </select>
-            <div class="episodes-list" id="episodesList"></div>
-          </div>
-        `;
-      }
+function closeModal() {
+  const modal = document.getElementById("screenshotModal");
+  modal.classList.remove("visible");
+  // Wait for transition to complete before hiding
+  setTimeout(() => {
+    modal.style.display = "none";
+  }, 300); // Match the transition duration (0.3s)
+}
 
-      movieDetailContainer.innerHTML = `
-        <div class="movie-header">
-          <img src="${poster}" alt="${title}" />
-          <div class="movie-info">
-            <div class="title">${title}</div>
-            <div class="year">${year}</div>
-            <div class="media-type">${mediaType === 'movie' ? 'Movie' : 'Series'}</div>
-            <div class="rating">Rating: <span>${rating}</span>/10</div>
-            <div class="overview">${overview || 'No overview available.'}</div>
-            ${seasonsHtml}
-            <div class="additional-info">
-              <a href="${trailer || '#'}" target="_blank" class="play-trailer" ${trailer ? '' : 'style="pointer-events: none;"'}>
-                Play Trailer
-              </a>
-              ${mediaType === 'movie' ? `<button class="watch-now" onclick="playMedia('${mediaId}', 'movie')">Watch Now</button>` : ''}
-              <button class="watch-later ${isAdded ? 'added' : ''}" id="watchLaterBtn" onclick="toggleWatchLater('${mediaId}', '${mediaType}')" ${currentUser ? '' : 'disabled'} title="${currentUser ? (isAdded ? 'Remove from Watch Later' : 'Add to Watch Later') : 'Please log in first'}">
-                <span>${isAdded ? 'Added' : 'Watch Later'}</span>
-              </button>
-              ${currentUser ? `<button style="display:none;" class="watched-btn ${isWatched ? 'watched' : ''}" id="watchedBtn" onclick="markWatched('${mediaId}')"><span>${isWatched ? 'Watched Already' : 'Mark Watched'}</span></button>` : ''}
-            </div>
-          </div>
-        </div>
-      `;
+// Ensure screenshots are clickable
+document.querySelectorAll(".screenshot").forEach(img => {
+  img.onclick = () => openModal(img.src);
+});
 
-      const screenshots = await fetchMediaScreenshots(mediaId, mediaType);
-      const screenshotImages = screenshots.slice(0, 10);
-      const screenshotsContainer = document.createElement("div");
-      screenshotsContainer.classList.add("screenshots");
+  async function toggleWatchLater(mediaId, mediaType) {
+    if (!currentUser) return;
 
-      screenshotImages.forEach(screenshot => {
-        const img = document.createElement("img");
-        img.classList.add("screenshot");
-        img.src = `${imageBaseUrl}${screenshot.file_path}`;
-        img.alt = "Screenshot";
-        img.onclick = () => openModal(img.src);
-        screenshotsContainer.appendChild(img);
-      });
+    const btn = document.getElementById("watchLaterBtn");
+    const isAdded = btn.classList.contains('added');
 
-      movieDetailContainer.appendChild(screenshotsContainer);
-      loadRecommendations(mediaId, mediaType);
-    }
-
-    async function fetchMediaScreenshots(mediaId, mediaType) {
-      const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
-      const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}/images?api_key=${apiKey}`);
-      if (!response.ok) return [];
-      const data = await response.json();
-      return data.backdrops || [];
-    }
-
-    async function fetchMediaTrailer(mediaId, mediaType) {
-      const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
-      const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}/videos?api_key=${apiKey}`);
-      if (!response.ok) return null;
-      const data = await response.json();
-      const trailer = data.results.find(video => video.type === 'Trailer');
-      return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
-    }
-
-    async function displayEpisodes(mediaId, seasonNumber) {
-      if (!seasonNumber) {
-        document.getElementById("episodesList").innerHTML = "";
-        return;
-      }
-
-      const response = await fetch(`${baseUrl}/tv/${mediaId}/season/${seasonNumber}?api_key=${apiKey}`);
-      if (!response.ok) throw new Error(`Failed to fetch episodes: ${response.status}`);
-      const data = await response.json();
-      const episodesList = document.getElementById("episodesList");
-      episodesList.innerHTML = "";
-
-      data.episodes.forEach(episode => {
-        const episodeItem = document.createElement("div");
-        episodeItem.classList.add("episode-item");
-        episodeItem.textContent = `Episode ${episode.episode_number}`;
-        episodeItem.onclick = () => playMedia(mediaId, 'series', seasonNumber, episode.episode_number);
-        episodesList.appendChild(episodeItem);
-      });
-    }
-
-    function playMedia(mediaId, mediaType, season = null, episode = null) {
-      const iframeContainer = document.getElementById("iframeContainer");
-      const iframe = document.getElementById("watchIframe");
-      let url;
-
-      if (mediaType === 'movie') {
-        url = `https://moviesapi.club/movie/${mediaId}`;
-      } else if ((mediaType === 'series' || mediaType === 'tv') && season && episode) {
-        url = `https://moviesapi.club/tv/${mediaId}-${season}-${episode}`;
-      } else {
-        console.error("Invalid media type or missing season/episode for series:", mediaType);
-        return;
-      }
-
-      iframe.src = url;
-      iframeContainer.style.display = "block";
-    }
-
-    function closeIframe() {
-      const iframeContainer = document.getElementById("iframeContainer");
-      const iframe = document.getElementById("watchIframe");
-      iframe.src = "";
-      iframeContainer.style.display = "none";
-    }
-
-    function closeModal() {
-      document.getElementById("screenshotModal").style.display = "none";
-    }
-
-    function openModal(src) {
-      const modal = document.getElementById("screenshotModal");
-      const expandedScreenshot = document.getElementById("expandedScreenshot");
-      expandedScreenshot.src = src;
-      modal.style.display = "flex";
-    }
-
-    function handleEnterKey(event) {
-      if (event.key === "Enter") {
-        performSearch();
-      }
-    }
-
-    function performSearch() {
-      const query = document.getElementById("searchBox").value.trim();
-      if (query) {
-        window.location.href = `search.html?query=${encodeURIComponent(query)}`;
-      }
-    }
-
-    async function toggleWatchLater(mediaId, mediaType) {
-      if (!currentUser) return;
-
-      const btn = document.getElementById("watchLaterBtn");
-      const isAdded = btn.classList.contains('added');
-
-      if (isAdded) {
-        btn.classList.add('remove-animate');
-        setTimeout(() => {
-          btn.classList.remove('remove-animate');
-          btn.classList.remove('added');
-          btn.querySelector('span').textContent = 'Watch Later';
-          btn.title = 'Add to Watch Later';
-        }, 1000);
-
-        try {
-          await db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId).delete();
-        } catch (error) {
-          console.error("Error removing from Watch Later:", error);
-        }
-      } else {
-        btn.classList.add('animate');
-        setTimeout(() => {
-          btn.classList.remove('animate');
-          btn.classList.add('added');
-          btn.querySelector('span').textContent = 'Added';
-          btn.title = 'Remove from Watch Later';
-        }, 1000);
-
-        try {
-          await db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId).set({
-            mediaId: mediaId,
-            mediaType: mediaType,
-            addedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            watched: false
-          });
-        } catch (error) {
-          console.error("Error adding to Watch Later:", error);
-        }
-      }
-    }
-
-    async function markWatched(mediaId) {
-      if (!currentUser) return;
-
-      const btn = document.getElementById("watchedBtn");
-      if (btn.classList.contains('watched')) return;
-
-      btn.classList.add('animate');
+    if (isAdded) {
+      btn.classList.add('remove-animate');
       setTimeout(() => {
-        btn.classList.remove('animate');
-        btn.classList.add('watched');
-        btn.querySelector('span').textContent = 'Watched Already';
+        btn.classList.remove('remove-animate');
+        btn.classList.remove('added');
+        btn.querySelector('span').textContent = 'Watch Later';
+        btn.title = 'Add to Watch Later';
       }, 1000);
 
       try {
-        const docRef = db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId);
-        const doc = await docRef.get();
-        if (doc.exists) {
-          await docRef.update({ watched: true });
-        } else {
-          await docRef.set({
-            mediaId: mediaId,
-            mediaType: mediaType,
-            addedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            watched: true
-          });
-        }
+        await db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId).delete();
       } catch (error) {
-        console.error("Error marking as watched:", error);
+        console.error("Error removing from Watch Later:", error);
+      }
+    } else {
+      btn.classList.add('animate');
+      setTimeout(() => {
+        btn.classList.remove('animate');
+        btn.classList.add('added');
+        btn.querySelector('span').textContent = 'Added';
+        btn.title = 'Remove from Watch Later';
+      }, 1000);
+
+      try {
+        await db.collection('users').doc(currentUser.uid).collection('watchLater').doc(mediaId).set({
+          mediaId: mediaId,
+          mediaType: mediaType,
+          addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          watched: false
+        });
+      } catch (error) {
+        console.error("Error adding to Watch Later:", error);
       }
     }
+  }
 
-    async function loadRecommendations(mediaId, mediaType) {
-      const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
-      const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}/similar?api_key=${apiKey}`);
-      if (!response.ok) return;
-      const data = await response.json();
+  async function loadRecommendations(mediaId, mediaType) {
+    const endpoint = mediaType === 'movie' ? 'movie' : 'tv';
+    const response = await fetch(`${baseUrl}/${endpoint}/${mediaId}/similar?api_key=${apiKey}`);
+    if (!response.ok) return;
+    const data = await response.json();
 
-      recommendationsContainer.innerHTML = '<h3>Recommended for You</h3>';
-      const recs = data.results.slice(0, 5);
-      recs.forEach(rec => {
-        const recCard = document.createElement('div');
-        recCard.classList.add('recommendation-card');
-        recCard.innerHTML = `
-          <img src="${imageBaseUrl}${rec.poster_path || '/placeholder.jpg'}" alt="${rec.title || rec.name}" />
-          <div class="details">
-            <div class="title">${rec.title || rec.name}</div>
-            <div class="year">${new Date(rec.release_date || rec.first_air_date).getFullYear() || 'N/A'}</div>
-          </div>
-        `;
-        recCard.onclick = () => window.location.href = `movie.html?id=${rec.id}&type=${mediaType}`;
-        recommendationsContainer.appendChild(recCard);
-      });
-    }
-
-    fetchMediaDetails(mediaId, mediaType).catch(err => {
-      console.error("Error loading media details:", err);
-      movieDetailContainer.innerHTML = "<p>Error loading content. Please try again.</p>";
+    recommendationsContainer.innerHTML = '<h3>Recommended for You</h3>';
+    const recs = data.results.slice(0, 5);
+    recs.forEach(rec => {
+      const recCard = document.createElement('div');
+      recCard.classList.add('recommendation-card');
+      recCard.innerHTML = `
+        <img src="${imageBaseUrl}${rec.poster_path || '/placeholder.jpg'}" alt="${rec.title || rec.name}" />
+        <div class="details">
+          <div class="title">${rec.title || rec.name}</div>
+          <div class="year">${new Date(rec.release_date || rec.first_air_date).getFullYear() || 'N/A'}</div>
+        </div>
+      `;
+      recCard.onclick = () => window.location.href = `movie.html?id=${rec.id}&type=${mediaType}`;
+      recommendationsContainer.appendChild(recCard);
     });
-  </script>
+  }
+
+  fetchMediaDetails(mediaId, mediaType).catch(err => {
+    const backdrop = data.backdrop_path ? `https://image.tmdb.org/t/p/original${data.backdrop_path}` : null;
+    const poster = data.poster_path ? `${imageBaseUrl}${data.poster_path}` : 'https://via.placeholder.com/350x500';
+
+    console.error("Error loading media details:", err);
+    movieDetailContainer.innerHTML = "<p>Error loading content. Please try again.</p>";
+  });
+</script>
 </body>
 </html>
