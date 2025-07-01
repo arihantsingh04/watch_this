@@ -1,0 +1,23 @@
+{
+  "name": "watch-this-movie-website",
+  "version": "1.0.0",
+  "description": "Modern 3D glassmorphism movie streaming website",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server . -p 3000 -o",
+    "start": "npx http-server . -p 3000",
+    "build": "echo 'Static site - no build needed'"
+  },
+  "keywords": [
+    "movies",
+    "streaming",
+    "glassmorphism",
+    "entertainment"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {}
+}
