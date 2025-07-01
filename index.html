@@ -81,7 +81,7 @@
       if (!greetingElement) return;
 
       if (currentUser) {
-        const username = currentUser?.email ? currentUser.email.split('@')[0] : 'Guest';
+        const username = currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'Guest';
         greetingElement.innerHTML = `
           <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
             <div style="font-size: 1.2rem; font-weight: 700; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
